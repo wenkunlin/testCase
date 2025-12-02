@@ -15,7 +15,7 @@
 export DEEPSEEK_API_KEY="your-actual-api-key-here"
 
 # 方法2：直接传递环境变量
-DEEPSEEK_API_KEY="sk-736c16431ac941bab374a19b4b2cfcd8" ./start_container.sh
+DEEPSEEK_API_KEY="your-actual-api-key-here" ./start_container.sh
 ```
 
 ### 2. 启动应用（自动重建镜像）
