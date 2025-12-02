@@ -1,0 +1,677 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}TestBrain - 测试用例评审{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="card">
+    <div class="card-header">
+        测试用例评审
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs" id="reviewTabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="pending-tab" data-toggle="tab" href="#pending" role="tab">
+                    待评审
+                    <div class="total-count">共 {{ pending_test_cases.paginator.count }} 条</div>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="approved-tab" data-toggle="tab" href="#approved" role="tab">
+                    已通过
+                    <div class="total-count">共 {{ approved_test_cases.paginator.count }} 条</div>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="rejected-tab" data-toggle="tab" href="#rejected" role="tab">
+                    未通过
+                    <div class="total-count">共 {{ rejected_test_cases.paginator.count }} 条</div>
+                </a>
+            </li>
+        </ul>
+        
+        <div class="tab-content mt-3" id="reviewTabsContent">
+            <!-- 待评审测试用例 -->
+            <div class="tab-pane fade show active" id="pending" role="tabpanel">
+                {% if pending_test_cases %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="select-all-pending">
+                                        <label class="custom-control-label" for="select-all-pending"></label>
+                                    </div>
+                                </th>
+                                <th>状态</th>
+                                <th>用例描述</th>
+                                <th>测试步骤</th>
+                                <th>预期结果</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for test_case in pending_test_cases %}
+                            <tr>
+                                <td>
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input pending-case-checkbox" 
+                                               id="pending-{{ test_case.id }}" data-id="{{ test_case.id }}">
+                                        <label class="custom-control-label" for="pending-{{ test_case.id }}"></label>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-warning">待评审</span></td>
+                                <td>{{ test_case.description }}</td>
+                                <td>{{ test_case.test_steps }}</td>
+                                <td>{{ test_case.expected_results }}</td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm review-button" data-id="{{ test_case.id }}">AI评审</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 待评审标签页的操作按钮 -->
+                <div class="mt-3">
+                    <button id="copy-selected-pending" class="btn btn-primary mr-2">复制</button>
+                    <button id="export-excel-pending" class="btn btn-success mr-2">导出到Excel</button>
+                    <button id="delete-selected-pending" class="btn btn-danger">删除选中项</button>
+                </div>
+                
+                <!-- 待评审测试用例的分页 -->
+                <div class="pagination-info">
+                    <span class="total-records">共 {{ pending_test_cases.paginator.count }} 条</span>
+                    <div class="pagination-buttons">
+                        {% if pending_test_cases.has_previous %}
+                        <a href="?pending_page={{ pending_test_cases.previous_page_number }}" class="btn btn-primary btn-sm prev-page" data-page-type="pending">上一页</a>
+                        {% endif %}
+                        <span class="page-numbers">{{ pending_test_cases.number }} / {{ pending_test_cases.paginator.num_pages }}</span>
+                        {% if pending_test_cases.has_next %}
+                        <a href="?pending_page={{ pending_test_cases.next_page_number }}" class="btn btn-primary btn-sm next-page" data-page-type="pending">下一页</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                    <div class="alert alert-info">没有待评审的测试用例</div>
+                {% endif %}
+            </div>
+            
+            <!-- 已通过测试用例 -->
+            <div class="tab-pane fade" id="approved" role="tabpanel">
+                {% if approved_test_cases %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="select-all">
+                                        <label class="custom-control-label" for="select-all"></label>
+                                    </div>
+                                </th>
+                                <th>状态</th>
+                                <th>用例描述</th>
+                                <th>测试步骤</th>
+                                <th>预期结果</th>
+                                <th>--</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for test_case in approved_test_cases %}
+                            <tr>
+                                <td>
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input case-checkbox" 
+                                               id="case-{{ test_case.id }}" data-id="{{ test_case.id }}">
+                                        <label class="custom-control-label" for="case-{{ test_case.id }}"></label>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-success">已通过</span></td>
+                                <td>{{ test_case.description }}</td>
+                                <td>{{ test_case.test_steps }}</td>
+                                <td>{{ test_case.expected_results }}</td>
+                                <td>
+                                    {% if test_case.reviews.exists %}
+                                        {{ test_case.reviews.last.review_comments }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 只在已通过标签页中添加操作按钮 -->
+                <div class="mt-3">
+                    <button id="copy-selected" class="btn btn-primary mr-2">复制</button>
+                    <button id="export-excel" class="btn btn-success mr-2">导出到Excel</button>
+                    <button id="delete-selected-approved" class="btn btn-danger">删除选中项</button>
+                </div>
+                
+                <!-- 已通过测试用例的分页 -->
+                <div class="pagination-info">
+                    <span class="total-records">共 {{ approved_test_cases.paginator.count }} 条</span>
+                    <div class="pagination-buttons">
+                        {% if approved_test_cases.has_previous %}
+                        <a href="?approved_page={{ approved_test_cases.previous_page_number }}" class="btn btn-primary btn-sm prev-page" data-page-type="approved">上一页</a>
+                        {% endif %}
+                        <span class="page-numbers">{{ approved_test_cases.number }} / {{ approved_test_cases.paginator.num_pages }}</span>
+                        {% if approved_test_cases.has_next %}
+                        <a href="?approved_page={{ approved_test_cases.next_page_number }}" class="btn btn-primary btn-sm next-page" data-page-type="approved">下一页</a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% else %}
+                    <div class="alert alert-info">没有评审通过的测试用例</div>
+                {% endif %}
+            </div>
+            
+            <!-- 未通过测试用例 -->
+            <div class="tab-pane fade" id="rejected" role="tabpanel">
+                {% if rejected_test_cases %}
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 40px;">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="select-all-rejected">
+                                        <label class="custom-control-label" for="select-all-rejected"></label>
+                                    </div>
+                                </th>
+                                <th>状态</th>
+                                <th>用例描述</th>
+                                <th>测试步骤</th>
+                                <th>预期结果</th>
+                                <th>评审意见</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for test_case in rejected_test_cases %}
+                            <tr>
+                                <td>
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input rejected-case-checkbox" 
+                                               id="rejected-case-{{ test_case.id }}" data-id="{{ test_case.id }}">
+                                        <label class="custom-control-label" for="rejected-case-{{ test_case.id }}"></label>
+                                    </div>
+                                </td>
+                                <td><span class="badge badge-danger">未通过</span></td>
+                                <td>{{ test_case.description }}</td>
+                                <td>{{ test_case.test_steps }}</td>
+                                <td>{{ test_case.expected_results }}</td>
+                                <td>
+                                    {% if test_case.reviews.exists %}
+                                        {{ test_case.reviews.last.review_comments }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm review-button" data-id="{{ test_case.id }}">重新AI评审</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 添加删除按钮 -->
+                <div class="mt-3">
+                    <button id="delete-selected" class="btn btn-danger">删除选中项</button>
+                </div>
+                
+                <!-- 未通过测试用例的分页 -->
+                <div class="pagination-info">
+                    <span class="total-records">共 {{ rejected_test_cases.paginator.count }} 条</span>
+                    <div class="pagination-buttons">
+                        {% if rejected_test_cases.has_previous %}
+                        <a href="?rejected_page={{ rejected_test_cases.previous_page_number }}" class="btn btn-primary btn-sm prev-page" data-page-type="rejected">上一页</a>
+                        {% endif %}
+                        <span class="page-numbers">{{ rejected_test_cases.number }} / {{ rejected_test_cases.paginator.num_pages }}</span>
+                        {% if rejected_test_cases.has_next %}
+                        <a href="?rejected_page={{ rejected_test_cases.next_page_number }}" class="btn btn-primary btn-sm next-page" data-page-type="rejected">下一页</a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% else %}
+                    <div class="alert alert-info">没有评审未通过的测试用例</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 标签页容器样式 */
+    .nav-tabs {
+        border: none;
+        background-color: #f8f9fa;
+        padding: 10px 10px 0;
+        display: flex;
+        gap: 0;
+    }
+    
+    /* 标签页按钮基础样式 */
+    .nav-tabs .nav-link {
+        border: none;
+        padding: 12px 25px;
+        margin: 0;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.3s ease;
+        background-color: #e9ecef;
+        color: #495057;
+        position: relative;
+        font-weight: 500;
+    }
+    
+    /* 标签页悬停效果 */
+    .nav-tabs .nav-link:hover {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    /* 活动标签页样式 */
+    .nav-tabs .nav-link.active {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    /* 标签内的徽章样式 */
+    .nav-tabs .badge {
+        font-weight: 500;
+        font-size: 14px;
+        padding: 8px 16px;
+        border-radius: 0;
+        transition: all 0.3s ease;
+        background: transparent;
+        border: none;
+    }
+    
+    /* 各状态徽章颜色 */
+    .nav-link.active .badge-warning,
+    .nav-link:hover .badge-warning {
+        color: #fff;
+    }
+    
+    .nav-link.active .badge-success,
+    .nav-link:hover .badge-success {
+        color: #fff;
+    }
+    
+    .nav-link.active .badge-danger,
+    .nav-link:hover .badge-danger {
+        color: #fff;
+    }
+    
+    /* 标签页内容区域样式 */
+    .tab-content {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-top: 2px solid #007bff;
+        padding: 20px;
+    }
+    
+    /* 添加鼠标指针样式 */
+    .nav-tabs .nav-link {
+        cursor: pointer;
+    }
+    
+    /* 移除标签页之间的间隙 */
+    .nav-item {
+        margin-bottom: 0;
+        margin-right: -1px;
+    }
+    
+    /* 添加总条数显示样式 */
+    .nav-tabs .nav-link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 12px 25px 8px;
+    }
+    
+    .total-count {
+        font-size: 12px;
+        margin-top: 4px;
+        opacity: 0.8;
+        font-weight: normal;
+    }
+    
+    /* 修改活动和悬停状态下的总条数颜色 */
+    .nav-tabs .nav-link.active .total-count,
+    .nav-tabs .nav-link:hover .total-count {
+        color: #fff;
+    }
+    
+    /* 非活动状态下的总条数颜色 */
+    .nav-tabs .nav-link .total-count {
+        color: #6c757d;
+    }
+    
+    /* 分页信息容器样式 */
+    .pagination-info {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 10px 0;
+        border-top: 1px solid #dee2e6;
+        margin-top: 15px;
+    }
+    
+    /* 总条数样式 */
+    .total-records {
+        color: #666;
+        margin-right: 15px;
+    }
+    
+    /* 分页按钮容器 */
+    .pagination-buttons {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    /* 页码样式 */
+    .page-numbers {
+        color: #666;
+        padding: 5px 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+    }
+    
+    /* 上一页和下一页按钮样式 */
+    .prev-page,
+    .next-page {
+        padding: 4px 12px;
+        font-size: 14px;
+    }
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/review.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 全选功能
+    const selectAllCheckbox = document.getElementById('select-all');
+    const caseCheckboxes = document.querySelectorAll('.case-checkbox');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            caseCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+        });
+    }
+    
+    caseCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (!this.checked && selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            } else if (Array.from(caseCheckboxes).every(cb => cb.checked) && selectAllCheckbox) {
+                selectAllCheckbox.checked = true;
+            }
+        });
+    });
+    
+    // 复制按钮功能
+    const copyButton = document.getElementById('copy-selected');
+    if (copyButton) {
+        copyButton.addEventListener('click', async function() {
+            // 获取选中的测试用例ID
+            const selectedIds = Array.from(document.querySelectorAll('.case-checkbox:checked'))
+                .map(checkbox => checkbox.getAttribute('data-id'));
+                
+            if (selectedIds.length === 0) {
+                alert('请先选择要复制的测试用例');
+                return;
+            }
+            
+            try {
+                // 获取测试用例数据
+                const response = await fetch('/api/copy-test-cases/?ids=' + selectedIds.join(','), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.message);
+                }
+                
+                // 格式化并复制到剪贴板
+                const textToCopy = data.test_cases.map(testCase => (
+                    `测试用例描述：${testCase.description}\n` +
+                    `测试步骤：${testCase.test_steps}\n` +
+                    `预期结果：${testCase.expected_results}\n` +
+                    `----------------------------------------`
+                )).join('\n\n');
+                
+                // 添加检查确保clipboard API可用
+                if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(textToCopy)
+                        .then(() => {
+                            console.log('测试用例已复制到剪贴板');
+                            alert('测试用例已复制到剪贴板！');
+                        })
+                        .catch(err => {
+                            console.error('复制失败:', err);
+                            // 备用复制方案
+                            const textarea = document.createElement('textarea');
+                            textarea.value = textToCopy;
+                            textarea.style.position = 'fixed';  // 避免滚动到底部
+                            document.body.appendChild(textarea);
+                            textarea.focus();
+                            textarea.select();
+                            
+                            try {
+                                const successful = document.execCommand('copy');
+                                console.log(successful ? '复制成功' : '复制失败');
+                                alert('测试用例已复制到剪贴板！');
+                            } catch (err) {
+                                console.error('复制失败:', err);
+                                alert('复制失败：' + err.message);
+                            }
+                            
+                            document.body.removeChild(textarea);
+                        });
+                } else {
+                    // 备用复制方案
+                    const textarea = document.createElement('textarea');
+                    textarea.value = textToCopy;
+                    textarea.style.position = 'fixed';  // 避免滚动到底部
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    
+                    try {
+                        const successful = document.execCommand('copy');
+                        console.log(successful ? '复制成功' : '复制失败');
+                        alert('测试用例已复制到剪贴板！');
+                    } catch (err) {
+                        console.error('复制失败:', err);
+                        alert('复制失败：' + err.message);
+                    }
+                    
+                    document.body.removeChild(textarea);
+                }
+            } catch (error) {
+                console.error('操作失败:', error);
+                alert('操作失败：' + error.message);
+            }
+        });
+    }
+    
+    // 导出到Excel按钮功能
+    const exportButton = document.getElementById('export-excel');
+    if (exportButton) {
+        exportButton.addEventListener('click', function() {
+            const selectedIds = Array.from(document.querySelectorAll('.case-checkbox:checked'))
+                .map(checkbox => checkbox.getAttribute('data-id'));
+                
+            if (selectedIds.length === 0) {
+                alert('请先选择要导出的测试用例');
+                return;
+            }
+            
+            // 导出选中的测试用例到Excel
+            window.location.href = '/api/export-test-cases-excel/?ids=' + selectedIds.join(',');
+        });
+    }
+    
+    // 待评审 - 全选/单选
+    const selectAllPending = document.getElementById('select-all-pending');
+    const pendingCheckboxes = document.querySelectorAll('.pending-case-checkbox');
+    if (selectAllPending) {
+        selectAllPending.addEventListener('change', function() {
+            pendingCheckboxes.forEach(cb => {
+                cb.checked = this.checked;
+            });
+        });
+    }
+    pendingCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            if (!this.checked && selectAllPending) {
+                selectAllPending.checked = false;
+            } else if (Array.from(pendingCheckboxes).every(x => x.checked) && selectAllPending) {
+                selectAllPending.checked = true;
+            }
+        });
+    });
+
+    // 待评审 - 复制
+    const copyPendingBtn = document.getElementById('copy-selected-pending');
+    if (copyPendingBtn) {
+        copyPendingBtn.addEventListener('click', async function() {
+            const ids = Array.from(document.querySelectorAll('.pending-case-checkbox:checked'))
+                .map(cb => cb.getAttribute('data-id'));
+            if (ids.length === 0) {
+                alert('请先选择要复制的测试用例');
+                return;
+            }
+            try {
+                const response = await fetch('/api/copy-test-cases/?ids=' + ids.join(','), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.message || '复制失败');
+                }
+                const textToCopy = data.test_cases.map(testCase => (
+                    `测试用例描述：${testCase.description}\n` +
+                    `测试步骤：${testCase.test_steps}\n` +
+                    `预期结果：${testCase.expected_results}\n` +
+                    `----------------------------------------`
+                )).join('\n\n');
+                if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(textToCopy);
+                    alert('测试用例已复制到剪贴板！');
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = textToCopy;
+                    textarea.style.position = 'fixed';
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    alert('测试用例已复制到剪贴板！');
+                }
+            } catch (error) {
+                console.error('操作失败:', error);
+                alert('操作失败：' + error.message);
+            }
+        });
+    }
+
+    // 待评审 - 导出Excel
+    const exportPendingBtn = document.getElementById('export-excel-pending');
+    if (exportPendingBtn) {
+        exportPendingBtn.addEventListener('click', function() {
+            const ids = Array.from(document.querySelectorAll('.pending-case-checkbox:checked'))
+                .map(cb => cb.getAttribute('data-id'));
+            if (ids.length === 0) {
+                alert('请先选择要导出的测试用例');
+                return;
+            }
+            window.location.href = '/api/export-test-cases-excel/?ids=' + ids.join(',');
+        });
+    }
+    // 未通过标签页的全选功能
+    const selectAllRejected = document.getElementById('select-all-rejected');
+    const rejectedCheckboxes = document.querySelectorAll('.rejected-case-checkbox');
+    
+    if (selectAllRejected) {
+        selectAllRejected.addEventListener('change', function() {
+            rejectedCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+        });
+    }
+    
+    rejectedCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (!this.checked && selectAllRejected) {
+                selectAllRejected.checked = false;
+            } else if (Array.from(rejectedCheckboxes).every(cb => cb.checked) && selectAllRejected) {
+                selectAllRejected.checked = true;
+            }
+        });
+    });
+    
+    // 通用 - 批量删除绑定
+    function bindBulkDelete(buttonId, checkboxSelector) {
+        const btn = document.getElementById(buttonId);
+        if (!btn) return;
+        btn.addEventListener('click', async function() {
+            const selectedIds = Array.from(document.querySelectorAll(`${checkboxSelector}:checked`))
+                .map(checkbox => checkbox.getAttribute('data-id'));
+            if (selectedIds.length === 0) {
+                alert('请先选择要删除的测试用例');
+                return;
+            }
+            if (!confirm('确定要删除选中的测试用例吗？此操作不可恢复。')) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/delete-test-cases/?ids=' + selectedIds.join(','), {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    window.location.reload();
+                    alert('删除成功！');
+                } else {
+                    throw new Error(data.message || '删除失败');
+                }
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败：' + error.message);
+            }
+        });
+    }
+
+    // 绑定三个Tab的删除按钮
+    bindBulkDelete('delete-selected-pending', '.pending-case-checkbox');
+    bindBulkDelete('delete-selected-approved', '.case-checkbox');
+    bindBulkDelete('delete-selected', '.rejected-case-checkbox');
+});
+</script>
+{% endblock %} 

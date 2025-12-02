@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}TestBrain - 首页{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        欢迎使用 TestBrain 测试用例管理平台
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h3>{{ total_test_cases }}</h3>
+                        <p class="mb-0">总测试用例数</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h3>{{ pending_count }}</h3>
+                        <p class="mb-0">待评审</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h3>{{ approved_count }}</h3>
+                        <p class="mb-0">评审通过</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h3>{{ rejected_count }}</h3>
+                        <p class="mb-0">评审未通过</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
