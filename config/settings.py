@@ -23,11 +23,7 @@ SECRET_KEY = 'django-insecure-your-secret-key-here'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '0.0.0.0'
-]
+ALLOWED_HOSTS = ['*']
 
 # 是否启用Milvus
 ENABLE_MILVUS = False
@@ -163,7 +159,7 @@ VECTOR_DB_CONFIG = {
 EMBEDDING_CONFIG = {
     'model': 'bge-m3',
     'api_key': 'your_huggingface_api_key',
-    'api_url': 'https://api-inference.huggingface.co/models/BAAI/bge-m3',
+    'api_url': 'https://router.huggingface.co/models/BAAI/bge-m3',
 }
 
 # Hugging Face 的tokenizers库使用了多进程机制;
