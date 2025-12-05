@@ -5,7 +5,7 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # 创建挂载目录
-RUN mkdir -p /mnt/src
+RUN mkdir -p
 
 # 可选：将 apt 源更换为国内镜像（如清华源）以加速系统包安装
 # RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \
@@ -38,4 +38,4 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # 设置容器启动时默认执行的命令
-CMD ["sh", "-c", "if [ -d /mnt/src ] && [ \"$(ls -A /mnt/src)\" ]; then cp -r /mnt/src/* /app/ 2>/dev/null || true; fi && /bin/bash"]
+CMD ["sh", "-c", "mkdir -p /app/src && if [ -d /app/src ] && [ -n \"$(ls -A /app/src 2>/dev/null)\" ]; then cp -r /app/src/* /app/ 2>/dev/null || true; fi && /bin/bash"]
