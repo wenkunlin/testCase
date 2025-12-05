@@ -5,7 +5,7 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # 创建挂载目录
-RUN mkdir -p
+RUN mkdir -p /app/src /app/models
 
 # 可选：将 apt 源更换为国内镜像（如清华源）以加速系统包安装
 # RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list && \

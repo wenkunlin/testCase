@@ -155,61 +155,61 @@ main_start_container() {
             SOURCE_CODE_PATH="$(pwd)"
         fi
         echo "使用源代码目录: $SOURCE_CODE_PATH"
+        echo ""
         
-        # 启动容器（后台模式）
-        $DOCKER_CMD run -d -p 9002:9002 \
-          -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-          -v "$SOURCE_CODE_PATH":/app/src \
-          -v "$MODEL_CACHE_DIR":/root/.cache/torch/sentence_transformers \
-          --name my-running-app my-python-app:latest \
-          sh -c "mkdir -p /app/src && if [ -d /app/src ] && [ -n \"$(ls -A /app/src 2>/dev/null)\" ]; then cp -r /app/src/* /app/ 2>/dev/null || true; fi && cd /app && python manage.py makemigrations && python manage.py migrate && tail -f /dev/null"
+        # 先询问用户启动模式
+        echo "请选择容器启动模式："
+        echo "1. 后台模式 (默认) - 容器在后台运行，需要手动进入容器启动服务"
+        echo "2. 交互模式 - 直接进入容器终端，可手动启动服务"
+        read -t 10 -p "请输入选择 (1/2，默认1): " start_mode
+        echo ""
         
-        # 检查容器是否启动成功
-        if $DOCKER_CMD ps | grep -q "my-running-app"; then
-            echo "容器启动成功！"
-            echo "容器ID: $($DOCKER_CMD ps -q --filter name=my-running-app)"
+        if [[ "$start_mode" == "2" ]]; then
+            # 交互式模式
+            echo "正在启动交互式容器..."
+            echo "进入容器后，您可以手动执行以下命令启动服务器："
+            echo "  python manage.py runserver 0.0.0.0:9002"
             echo ""
-            echo "操作说明："
-            echo "1. 查看容器日志: $DOCKER_CMD logs -f my-running-app"
-            echo "2. 进入容器交互模式: $DOCKER_CMD exec -it my-running-app bash"
-            echo "3. 停止容器: $DOCKER_CMD stop my-running-app"
-            echo "4. 重启容器: $DOCKER_CMD restart my-running-app"
-            echo "5. 使用此脚本停止: ./start_container.sh --stop"
+            echo "输入 'exit' 退出容器，容器将完全停止"
             echo ""
             
-            # 提供交互式选项
-            echo "是否现在进入容器交互模式？(y/n，默认n)"
-            read -t 10 -p "请输入选择: " user_choice
+            $DOCKER_CMD run -it --rm -p 9002:9002 \
+              -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
+              -v "$SOURCE_CODE_PATH":/app/src \
+              -v "$MODEL_CACHE_DIR":/root/.cache/torch/sentence_transformers \
+              --name my-running-app my-python-app:latest \
+              sh -c "mkdir -p /app/src && if [ -d /app/src ] && [ -n \"$(ls -A /app/src 2>/dev/null)\" ]; then cp -r /app/src/* /app/ 2>/dev/null || true; fi && cd /app && python manage.py makemigrations && python manage.py migrate && echo '数据迁移已完成！' && echo '现在可以手动启动服务器：python manage.py runserver 0.0.0.0:9002' && exec bash"
+        else
+            # 后台模式
+            echo "正在启动后台容器..."
+            $DOCKER_CMD run -d -p 9002:9002 \
+              -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
+              -v "$SOURCE_CODE_PATH":/app/src \
+              -v "$MODEL_CACHE_DIR":/root/.cache/torch/sentence_transformers \
+              --name my-running-app my-python-app:latest \
+              sh -c "mkdir -p /app/src && if [ -d /app/src ] && [ -n \"$(ls -A /app/src 2>/dev/null)\" ]; then cp -r /app/src/* /app/ 2>/dev/null || true; fi && cd /app && python manage.py makemigrations && python manage.py migrate && tail -f /dev/null"
             
-            if [[ "$user_choice" == "y" || "$user_choice" == "Y" ]]; then
-                echo "正在停止后台容器并启动前台交互模式..."
-                # 彻底停止和删除后台容器
-                $DOCKER_CMD stop my-running-app 2>/dev/null || true
-                sleep 2  # 等待容器完全停止
-                $DOCKER_CMD rm my-running-app 2>/dev/null || true
-                
-                # 在前台启动交互式容器
-                echo "正在启动前台交互式容器..."
-                echo "数据迁移已完成，现在可以手动启动服务器："
-                echo "python manage.py runserver 0.0.0.0:9002"
-                echo "输入 'exit' 退出容器，容器将完全停止"
-                
-                $DOCKER_CMD run -it --rm -p 9002:9002 \
-                  -e DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY" \
-                  -v "$SOURCE_CODE_PATH":/app/src \
-                  -v "$MODEL_CACHE_DIR":/root/.cache/torch/sentence_transformers \
-                  --name my-running-app my-python-app:latest \
-                  sh -c "mkdir -p /app/src && if [ -d /app/src ] && [ -n \"$(ls -A /app/src 2>/dev/null)\" ]; then cp -r /app/src/* /app/ 2>/dev/null || true; fi && cd /app && python manage.py makemigrations && python manage.py migrate && exec bash"
-            else
+            # 检查容器是否启动成功
+            if $DOCKER_CMD ps | grep -q "my-running-app"; then
+                echo "容器启动成功！"
+                echo "容器ID: $($DOCKER_CMD ps -q --filter name=my-running-app)"
+                echo ""
+                echo "操作说明："
+                echo "1. 查看容器日志: $DOCKER_CMD logs -f my-running-app"
+                echo "2. 进入容器交互模式: $DOCKER_CMD exec -it my-running-app bash"
+                echo "3. 停止容器: $DOCKER_CMD stop my-running-app"
+                echo "4. 重启容器: $DOCKER_CMD restart my-running-app"
+                echo "5. 使用此脚本停止: ./start_container.sh --stop"
+                echo ""
                 echo "容器在后台运行中，数据迁移已完成"
                 echo "如需启动服务器，请进入容器执行："
                 echo "$DOCKER_CMD exec -it my-running-app bash"
                 echo "然后在容器内运行：python manage.py runserver 0.0.0.0:9002"
                 echo "注意：使用docker exec进入容器后，exit命令不会停止容器"
+            else
+                echo "容器启动失败，请检查日志：$DOCKER_CMD logs my-running-app"
+                exit 1
             fi
-        else
-            echo "容器启动失败，请检查日志：$DOCKER_CMD logs my-running-app"
-            exit 1
         fi
     else
         exit 1

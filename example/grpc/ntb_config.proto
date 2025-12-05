@@ -1,0 +1,361 @@
+// Copyright 2025 TestBrain gRPC示例
+// NTB配置管理服务定义
+
+syntax = "proto3";
+
+package ntbservice;
+
+import "google/protobuf/any.proto";
+
+option java_multiple_files = true;
+option java_package = "com.testbrain.grpc.ntb";
+option java_outer_classname = "NtbProto";
+
+// NTB配置管理服务
+service NtbConfigService {
+    // VRF管理接口
+    rpc CreateVrf (VrfRequest) returns (VrfResponse) {};
+    rpc DeleteVrf (VrfRequest) returns (VrfResponse) {};
+    rpc GetVrfList (Empty) returns (VrfListResponse) {};
+    rpc UpdateVrf (VrfUpdateRequest) returns (VrfResponse) {};
+    
+    // 路由配置接口
+    rpc AddRouteVxlan (RouteVxlanRequest) returns (RouteVxlanResponse) {};
+    rpc DeleteRouteVxlan (RouteVxlanRequest) returns (RouteVxlanResponse) {};
+    rpc AddRouteGre (RouteGreRequest) returns (RouteGreResponse) {};
+    rpc DeleteRouteGre (RouteGreRequest) returns (RouteGreResponse) {};
+    rpc AddBlackholeRoute (BlackholeRouteRequest) returns (BlackholeRouteResponse) {};
+    rpc DeleteBlackholeRoute (BlackholeRouteRequest) returns (BlackholeRouteResponse) {};
+    
+    // 隧道配置接口
+    rpc AddVrfTunnelVxlan (TunnelVxlanRequest) returns (TunnelVxlanResponse) {};
+    rpc DeleteVrfTunnelVxlan (TunnelVxlanRequest) returns (TunnelVxlanResponse) {};
+    rpc AddVrfTunnelGre (TunnelGreRequest) returns (TunnelGreResponse) {};
+    rpc DeleteVrfTunnelGre (TunnelGreRequest) returns (TunnelGreResponse) {};
+    
+    // 跨连接配置
+    rpc AddCrossConnect (XConnectRequest) returns (XConnectResponse) {};
+    rpc DeleteCrossConnect (XConnectRequest) returns (XConnectResponse) {};
+    rpc SetCrossConnectDscp (XConnectDscpRequest) returns (XConnectDscpResponse) {};
+    
+    // 运维管理接口
+    rpc HeartBeat (Empty) returns (HeartBeatResponse) {};
+    rpc GetSystemStatus (Empty) returns (SystemStatusResponse) {};
+    rpc StartCapture (StartCaptureRequest) returns (CaptureResponse) {};
+    rpc StopCapture (Empty) returns (CaptureResponse) {};
+    
+    // QoS配置接口
+    rpc AddQosMeter (QosMeterRequest) returns (QosMeterResponse) {};
+    rpc DeleteQosMeter (QosMeterRequest) returns (QosMeterResponse) {};
+    rpc GetQosMeterStats (QosMeterRequest) returns (QosMeterStatResponse) {};
+    rpc ClearQosMeterStats (QosMeterRequest) returns (QosMeterResponse) {};
+    
+    // ARP管理接口
+    rpc AddVrfAgentArpIp (AgentArpIpRequest) returns (AgentArpIpResponse) {};
+    rpc DeleteVrfAgentArpIp (AgentArpIpRequest) returns (AgentArpIpResponse) {};
+    rpc GetVrfArpEntry (ArpEntryRequest) returns (ArpEntryResponse) {};
+    rpc SetVrfArpEntry (ArpEntryRequest) returns (ArpEntryResponse) {};
+    rpc GetVrfAllArpEntry (VrfAllArpRequest) returns (VrfAllArpResponse) {};
+}
+
+// 通用消息定义
+message Empty {
+}
+
+message Response {
+    int32 code = 1;      // 响应码：0-成功，其他-错误码
+    string message = 2;   // 响应消息
+    string data = 3;      // 响应数据（JSON格式）
+}
+
+message IpAddr {
+    oneof address {
+        string ipv4 = 1;     // IPv4地址
+        string ipv6 = 2;     // IPv6地址
+    }
+    int32 family = 3;        // 地址族：1-IPv4，2-IPv6
+}
+
+message Prefix {
+    IpAddr address = 1;      // IP地址
+    int32 prefix_len = 2;     // 前缀长度
+    int32 family = 3;         // 地址族
+}
+
+// VRF相关消息
+message VrfInfo {
+    string vrf_name = 1;     // VRF名称
+    string description = 2;   // 描述信息
+    int32 vrf_type = 3;       // VRF类型
+    int32 vrf_id = 4;         // VRF ID
+}
+
+message VrfRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    map<string, string> options = 2;  // 配置选项
+}
+
+message VrfResponse {
+    Response result = 1;       // 通用响应
+    VrfInfo vrf = 2;           // VRF信息
+    int64 created_at = 3;      // 创建时间戳
+}
+
+message VrfUpdateRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    map<string, string> updates = 2;  // 更新字段
+}
+
+message VrfListResponse {
+    Response result = 1;       // 通用响应
+    repeated VrfInfo vrfs = 2; // VRF列表
+    int32 total_count = 3;     // 总数
+}
+
+// Vxlan路由消息
+message RouteVxlan {
+    Prefix prefix = 1;         // 路由前缀
+    IpAddr nexthop_ip = 2;    // 下一跳IP
+    int32 vni = 3;            // VNI标识
+    int32 dscp = 4;           // DSCP值
+    IpAddr gateway = 5;       // 网关地址
+    int32 table_id = 6;       // 路由表ID
+    int32 weight = 7;         // 权重
+}
+
+message RouteVxlanRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated RouteVxlan routes = 2;  // 路由列表
+}
+
+message RouteVxlanResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated RouteVxlan routes = 3;  // 路由列表
+}
+
+// GRE路由消息
+message RouteGre {
+    Prefix prefix = 1;         // 路由前缀
+    IpAddr nexthop_ip = 2;    // 下一跳IP
+    IpAddr vm_ip = 3;          // VM IP地址
+    int32 vpc_id = 4;         // VPC ID
+    int32 weight = 5;          // 权重
+}
+
+message RouteGreRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated RouteGre routes = 2;  // 路由列表
+}
+
+message RouteGreResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated RouteGre routes = 3;  // 路由列表
+}
+
+// 黑洞路由消息
+message BlackholeRoute {
+    Prefix prefix = 1;         // 路由前缀
+    int32 table_id = 2;       // 路由表ID
+}
+
+message BlackholeRouteRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated BlackholeRoute routes = 2;  // 黑洞路由列表
+}
+
+message BlackholeRouteResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated BlackholeRoute routes = 3;  // 路由列表
+}
+
+// Vxlan隧道消息
+message TunnelVxlan {
+    int32 vxlan_vni = 1;      // Vxlan VNI
+    int32 rpf = 2;            // RPF检查
+    int32 table_id = 3;       // 路由表ID
+}
+
+message TunnelVxlanRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated TunnelVxlan tunnels = 2;  // 隧道列表
+}
+
+message TunnelVxlanResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated TunnelVxlan tunnels = 3;  // 隧道列表
+}
+
+// GRE隧道消息
+message TunnelGre {
+    int32 gre_vpc_id = 1;     // GRE VPC ID
+}
+
+message TunnelGreRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated TunnelGre tunnels = 2;  // 隧道列表
+}
+
+message TunnelGreResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated TunnelGre tunnels = 3;  // 隧道列表
+}
+
+// 跨连接消息
+message XConnect {
+    int32 in_vxlan_vni = 1;   // 入向Vxlan VNI
+    int32 out_vxlan_vni = 2;  // 出向Vxlan VNI
+    IpAddr remote_ip = 3;     // 远端IP
+    int32 dscp = 4;           // DSCP值
+}
+
+message XConnectRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated XConnect xconnects = 2;  // 跨连接列表
+}
+
+message XConnectResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated XConnect xconnects = 3;  // 跨连接列表
+}
+
+message XConnectDscpRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated XConnectDscp xconnect_dscps = 2;  // DSCP配置列表
+}
+
+message XConnectDscp {
+    int32 in_vni = 1;         // 入向VNI
+    int32 dscp = 2;           // DSCP值
+}
+
+message XConnectDscpResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated XConnectDscp xconnect_dscps = 3;  // DSCP配置列表
+}
+
+// 心跳消息
+message HeartBeatResponse {
+    Response result = 1;      // 通用响应
+    int32 up_time = 2;        // 运行时间（秒）
+    string version = 3;       // 版本号
+    bool registered = 4;      // 是否已注册
+    int64 startup_time = 5;   // 启动时间戳
+}
+
+// 系统状态消息
+message SystemStatusResponse {
+    Response result = 1;      // 通用响应
+    bool forward_status = 2;  // 转发状态
+    bool probe_result = 3;    // 探测结果
+    int32 cpu_usage = 4;      // CPU使用率
+    int32 memory_usage = 5;   // 内存使用率
+    int32 disk_usage = 6;     // 磁盘使用率
+}
+
+// 抓包消息
+message StartCaptureRequest {
+    string vrf_name = 1;      // VRF名称
+    Prefix src_ip = 2;         // 源IP
+    Prefix dst_ip = 3;        // 目的IP
+    int32 protocol = 4;       // 协议类型
+    int32 src_port = 5;       // 源端口
+    int32 dst_port = 6;       // 目的端口
+    int32 packet_num = 7;     // 抓包数量
+    int32 ttl_start = 8;      // TTL起始值
+    int32 ttl_end = 9;        // TTL结束值
+    bool is_both = 10;        // 是否双向抓包
+    int32 sample = 11;        // 采样率
+    int32 pkt_len = 12;       // 包长度
+    int32 mac_type = 13;      // MAC类型
+}
+
+message CaptureResponse {
+    Response result = 1;      // 通用响应
+    string capture_id = 2;    // 抓包ID
+    string file_path = 3;     // 文件路径
+    int64 start_time = 4;     // 开始时间
+}
+
+// QoS消息
+message QosMeter {
+    string name = 1;          // 计量器名称
+    int64 cir = 2;            // 承诺信息速率（kbps）
+    int64 cbs = 3;            // 承诺突发大小（kbits）
+    bool cluster_sync = 4;    // 集群同步
+}
+
+message QosMeterRequest {
+    repeated QosMeter meters = 1;  // 计量器列表
+}
+
+message QosMeterResponse {
+    Response result = 1;      // 通用响应
+    repeated QosMeter meters = 2;  // 计量器列表
+}
+
+message QosMeterStatResponse {
+    Response result = 1;      // 通用响应
+    repeated QosMeterStat stats = 2;  // 统计信息
+}
+
+message QosMeterStat {
+    string name = 1;          // 计量器名称
+    int64 quota = 2;          // 配额
+    int64 ret_packets = 3;     // 返回包数
+    int64 ret_bytes = 4;       // 返回字节数
+    int64 ret_pps = 5;        // 返回包速率
+    int64 ret_bps = 6;         // 返回比特速率
+    int64 ret_drop_packets = 7; // 丢弃包数
+    int64 ret_drop_bytes = 8;   // 丢弃字节数
+    int64 ret_drop_pps = 9;    // 丢弃包速率
+    int64 ret_drop_bps = 10;    // 丢弃比特速率
+}
+
+// ARP消息
+message AgentArpIp {
+    IpAddr ip = 1;            // IP地址
+    string mac = 2;           // MAC地址
+    IpAddr req_ip = 3;        // 请求IP
+}
+
+message AgentArpIpRequest {
+    VrfInfo vrf = 1;          // VRF信息
+    repeated AgentArpIp agent_arp_ips = 2;  // ARP代理列表
+}
+
+message AgentArpIpResponse {
+    Response result = 1;      // 通用响应
+    VrfInfo vrf = 2;          // VRF信息
+    repeated AgentArpIp agent_arp_ips = 3;  // ARP代理列表
+}
+
+message ArpEntry {
+    IpAddr ip = 1;            // IP地址
+    string mac = 2;           // MAC地址
+    string vrf = 3;           // VRF名称
+}
+
+message ArpEntryRequest {
+    repeated ArpEntry arp_entries = 1;  // ARP条目列表
+}
+
+message ArpEntryResponse {
+    Response result = 1;      // 通用响应
+    repeated ArpEntry arp_entries = 2;  // ARP条目列表
+}
+
+message VrfAllArpRequest {
+    VrfInfo vrf = 1;          // VRF信息
+}
+
+message VrfAllArpResponse {
+    Response result = 1;      // 通用响应
+    repeated ArpEntry arp_entries = 2;  // ARP条目列表
+}

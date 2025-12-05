@@ -104,14 +104,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 generateButton.disabled = true;
             }
             
+            // 获取测试类型
+            const testType = document.getElementById('test-type')?.value || 'requirement';
+            
             // 构造请求数据
             const requestData = {
-                requirements: inputTextValue,
-                llm_provider: document.getElementById('llm-provider')?.value || 'deepseek',
-                case_design_methods: selectedDesignMethods,
-                case_categories: selectedCaseCategories,
-                case_count: document.getElementById('case_count')?.value || '10'
+                test_type: testType,
+                llm_provider: document.getElementById('llm-provider')?.value || 'deepseek'
             };
+            
+            if (testType === 'grpc') {
+                // gRPC测试用例
+                const grpcMethod = document.getElementById('grpc-method')?.value;
+                if (!grpcMethod) {
+                    showNotification('请选择gRPC方法', 'error');
+                    if (loadingIndicator) loadingIndicator.style.display = 'none';
+                    if (generateButton) generateButton.disabled = false;
+                    return;
+                }
+                requestData.grpc_method = grpcMethod;
+            } else {
+                // 需求测试用例
+                requestData.requirements = inputTextValue;
+                requestData.case_design_methods = selectedDesignMethods;
+                requestData.case_categories = selectedCaseCategories;
+                requestData.case_count = document.getElementById('case_count')?.value || '10';
+            }
             
             console.log('发送的数据:', requestData);
             
@@ -150,11 +168,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     // 使用已有的 displayTestCases 函数显示测试用例
-                    displayTestCases(data.test_cases);
+                    displayTestCases(data.test_cases, data.test_code);
                     
                     // 保存生成的测试用例到会话存储
                     sessionStorage.setItem('generatedTestCases', JSON.stringify(data.test_cases));
                     sessionStorage.setItem('inputText', inputTextValue);
+                    
+                    // 如果有测试代码，也保存
+                    if (data.test_code) {
+                        sessionStorage.setItem('testCode', data.test_code);
+                        sessionStorage.setItem('codeFilename', data.code_filename || 'test_case.py');
+                    }
                     
                     // 重新绑定保存按钮事件
                     const saveButton = document.getElementById('save-button');
@@ -181,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 显示测试用例
-    function displayTestCases(testCases) {
+    function displayTestCases(testCases, testCode) {
         // 获取或创建 resultContainer
         let resultContainer = document.getElementById('result-container');
         if (!resultContainer) {
@@ -255,11 +279,83 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="text-right mt-3">
                 <button id="save-button" class="btn btn-success">保存测试用例</button>
-            </div>
         `;
+        
+        // 如果有测试代码，添加下载和查看按钮
+        if (testCode) {
+            html += `
+                <button id="download-code-button" class="btn btn-primary ml-2">下载测试代码</button>
+                <button id="view-code-button" class="btn btn-info ml-2">查看测试代码</button>
+            `;
+        }
+        
+        html += `</div>`;
+        
+        // 如果有测试代码，添加代码查看模态框
+        if (testCode) {
+            html += `
+            <div class="modal fade" id="codeModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">生成的测试代码</h5>
+                            <button type="button" class="close" data-dismiss="modal">
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <pre><code class="language-python">${escapeHtml(testCode)}</code></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+                            <button type="button" class="btn btn-primary" id="copy-code-button">复制代码</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
 
         resultContainer.innerHTML = html;
 
+        // 绑定代码下载按钮事件
+        const downloadCodeButton = document.getElementById('download-code-button');
+        if (downloadCodeButton && testCode) {
+            downloadCodeButton.addEventListener('click', function() {
+                const filename = sessionStorage.getItem('codeFilename') || 'test_case.py';
+                const blob = new Blob([testCode], { type: 'text/plain;charset=utf-8' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            });
+        }
+        
+        // 绑定代码查看按钮事件
+        const viewCodeButton = document.getElementById('view-code-button');
+        if (viewCodeButton && testCode) {
+            viewCodeButton.addEventListener('click', function() {
+                $('#codeModal').modal('show');
+            });
+        }
+        
+        // 绑定代码复制按钮事件
+        const copyCodeButton = document.getElementById('copy-code-button');
+        if (copyCodeButton && testCode) {
+            copyCodeButton.addEventListener('click', function() {
+                navigator.clipboard.writeText(testCode).then(function() {
+                    alert('代码已复制到剪贴板');
+                }).catch(function(err) {
+                    console.error('复制失败:', err);
+                    alert('复制失败，请手动复制');
+                });
+            });
+        }
+        
         // 重新绑定保存按钮事件
         const saveButton = document.getElementById('save-button');
         if (saveButton) {
@@ -353,4 +449,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return cookieValue;
     }
-}); 
+    
+    // HTML转义函数
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+});

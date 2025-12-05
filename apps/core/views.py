@@ -10,6 +10,7 @@ from ..agents.generator import TestCaseGeneratorAgent
 from ..agents.reviewer import TestCaseReviewerAgent
 from ..agents.analyser import PrdAnalyserAgent
 from ..agents.api_case_generator import APITestCaseGeneratorAgent, parse_api_definitions, generate_test_cases_for_apis
+from ..agents.grpc_test_generator import GrpcTestGenerator
 from ..agents.prompts import APITestCaseGeneratorPrompt
 from ..agents.progress_registry import get_progress as get_task_progress
 from ..knowledge.service import KnowledgeService
@@ -65,19 +66,22 @@ if enable_milvus:
         collection_name=settings.VECTOR_DB_CONFIG['collection_name']
     )
     logger.info("Milvus向量存储已初始化")
+    
+    # 只有在启用Milvus时才初始化embedder（避免加载大模型）
+    embedder = BGEM3Embedder(
+        model_name="BAAI/bge-m3"
+    )
+    logger.info("BGE-M3嵌入模型已初始化")
+    
+    # 创建KnowledgeService
+    knowledge_service = KnowledgeService(vector_store, embedder)
+    logger.info("KnowledgeService已初始化")
 else:
     vector_store = None
-    logger.info("Milvus向量存储已禁用，设置为None")
-
-embedder = BGEM3Embedder(
-    model_name="BAAI/bge-m3"
-)
-
-# 只有在Milvus启用时才创建KnowledgeService
-if enable_milvus and vector_store is not None:
-    knowledge_service = KnowledgeService(vector_store, embedder)
-else:
+    embedder = None
     knowledge_service = None
+    logger.info("Milvus向量存储已禁用，设置为None")
+    logger.info("BGE-M3嵌入模型已禁用，设置为None")
     logger.info("KnowledgeService已禁用，设置为None")
 # test_case_generator = TestCaseGeneratorAgent(llm_service, knowledge_service)
 #test_case_reviewer = TestCaseReviewerAgent(llm_service, knowledge_service)
@@ -111,12 +115,25 @@ def generate(request):
     """
     logger.info("===== 进入generate视图函数 =====")
     logger.info(f"请求方法: {request.method}")
+    
+    # 获取gRPC方法列表
+    grpc_methods = []
+    try:
+        grpc_dir = os.path.join(settings.BASE_DIR, 'example', 'grpc')
+        if os.path.exists(grpc_dir):
+            grpc_generator = GrpcTestGenerator(llm_service, knowledge_service)
+            grpc_methods = grpc_generator.get_grpc_methods_from_directory(grpc_dir)
+            logger.info(f"加载了 {len(grpc_methods)} 个gRPC方法")
+    except Exception as e:
+        logger.warning(f"加载gRPC方法失败: {str(e)}")
+    
     context = {
         'llm_providers': PROVIDERS,
         'llm_provider': DEFAULT_PROVIDER,
         'requirement': '',
-        # 'api_description': '',
-        'test_cases': None  # 初始化为 None
+        'test_cases': None,
+        'grpc_methods': grpc_methods,
+        'test_code': None
     }
     
     if request.method == 'GET':
@@ -132,47 +149,120 @@ def generate(request):
             'message': '无效的JSON数据'
         }, status=400)
     
-    # 参数获取和验证
-    requirements = data.get('requirements', '')
-    if not requirements:
-        return JsonResponse({
-            'success': False,
-            'message': '需求描述不能为空'
-        })
-        
+    # 获取测试类型
+    test_type = data.get('test_type', 'requirement')
     llm_provider = data.get('llm_provider', DEFAULT_PROVIDER)
-    case_design_methods = data.get('case_design_methods', [])  # 获取测试方法
-    case_categories = data.get('case_categories', [])         # 获取测试类型
-    case_count = int(data.get('case_count', 10))            # 获取生成用例条数
     
     logger.info(f"接收到的数据: {json.dumps(data, ensure_ascii=False)}")
+    logger.info(f"测试类型: {test_type}")
     
     try:
         # 使用工厂创建选定的LLM服务
         logger.info(f"使用 {llm_provider} 生成测试用例")
-        llm_service = LLMServiceFactory.create(llm_provider, **PROVIDERS.get(llm_provider, {}))
+        current_llm_service = LLMServiceFactory.create(llm_provider, **PROVIDERS.get(llm_provider, {}))
         
-        
-        generator_agent = TestCaseGeneratorAgent(llm_service=llm_service, knowledge_service=knowledge_service, case_design_methods=case_design_methods, case_categories=case_categories, case_count=case_count)
-        logger.info(f"开始生成测试用例 - 需求: {requirements}...")
-        logger.info(f"选择的测试用例设计方法: {case_design_methods}")
-        logger.info(f"选择的测试用例类型: {case_categories}")
-        logger.info(f"需要生成的用例条数: {case_count}")
-        
-        # 生成测试用例
-        #mock数据
-        # test_cases = [{'description': '测试系统对用户输入为纯文本时的处理', 'test_steps': ['1. 打开应用程序', "2. 在输入框中输入纯文本，例如：'肥肥的'", '3. 提交输入'], 'expected_results': ['1. 应用程序成功启动', "2. 输入框正确显示输入的文本：'肥肥的'", '3. 系统正确识别并处理为纯文本输入，不进行代码段处理']}, {'description': '测试系统对用户输入为代码段时的处理', 'test_steps': ['1. 打开应用程序', '2. 在输入框中输入代码段，例如：\'print("Hello, World!")\'', '3. 提交输入'], 'expected_results': ['1. 应用程序成功启动', '2. 输入框正确显示输入的代码段：\'print("Hello, World!")\'', '3. 系统正确识别并处理为代码段输入，进行相应的代码处理']}, {'description': '测试系统对用户输入为空时的处理', 'test_steps': ['1. 打开应用程序', '2. 在输入框中不输入任何内容', '3. 提交输入'], 'expected_results': ['1. 应用程序成功启动', '2. 输入框保持为空', '3. 系统提示输入不能为空，要求重新输入']}, {'description': '测试系统对用户输入为混合内容（文本和代码）时的处理', 'test_steps': ['1. 打开应用程序', '2. 在输入框中输入混合内容，例如：\'肥肥的 print("Hello, World!")\'', '3. 提交输入'], 'expected_results': ['1. 应用程序成功启动', '2. 输入框正确显示输入的混合内容：\'肥肥的 print("Hello, World!")\'', '3. 系统正确识别并处理为混合内容，分别对文本和代码段进行相应处理']}, {'description': '测试系统对用户输入为特殊字符时的处理', 'test_steps': ['1. 打开应用程序', "2. 在输入框中输入特殊字符，例如：'@#$%^&*()'", '3. 提交输入'], 'expected_results': ['1. 应用程序成功启动', "2. 输入框正确显示输入的特殊字符：'@#$%^&*()'", '3. 系统正确识别并处理为特殊字符输入，不进行代码段处理']}]
-        test_cases = generator_agent.generate(requirements, input_type="requirement")
-        logger.info(f"测试用例生成成功 - 生成数量: {len(test_cases)}")
-        
-        context.update({
-            'test_cases': test_cases
-        })
-        
-        return JsonResponse({
-            'success': True,
-            'test_cases': test_cases
-        })
+        if test_type == 'grpc':
+            # gRPC接口测试用例生成
+            grpc_method = data.get('grpc_method', '')
+            if not grpc_method:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'gRPC方法不能为空'
+                })
+            
+            # 解析方法信息
+            service_name, method_name = grpc_method.split('.')
+            
+            # 获取方法详细信息
+            grpc_dir = os.path.join(settings.BASE_DIR, 'example', 'grpc')
+            example_dir = os.path.join(settings.BASE_DIR, 'example', 'code')
+            
+            grpc_generator = GrpcTestGenerator(current_llm_service, knowledge_service)
+            all_methods = grpc_generator.get_grpc_methods_from_directory(grpc_dir)
+            
+            # 找到选中的方法
+            selected_method = None
+            for method in all_methods:
+                if method['service'] == service_name and method['method'] == method_name:
+                    selected_method = method
+                    break
+            
+            if not selected_method:
+                return JsonResponse({
+                    'success': False,
+                    'message': '未找到指定的gRPC方法'
+                })
+            
+            logger.info(f"开始生成gRPC测试用例: {service_name}.{method_name}")
+            
+            # 生成完整的测试套件
+            result = grpc_generator.generate_complete_test_suite(
+                selected_method, grpc_dir, example_dir
+            )
+            
+            if not result['success']:
+                return JsonResponse({
+                    'success': False,
+                    'message': result.get('error', '生成失败')
+                })
+            
+            test_cases = result['test_cases']
+            test_code = result['test_code']
+            
+            logger.info(f"gRPC测试用例生成成功 - 生成数量: {len(test_cases)}")
+            
+            # 保存生成的代码到example/auto目录
+            auto_dir = os.path.join(settings.BASE_DIR, 'example', 'auto')
+            os.makedirs(auto_dir, exist_ok=True)
+            
+            code_filename = f"test_{method_name.lower()}_{int(time.time())}.py"
+            code_filepath = os.path.join(auto_dir, code_filename)
+            
+            with open(code_filepath, 'w', encoding='utf-8') as f:
+                f.write(test_code)
+            
+            logger.info(f"测试代码已保存到: {code_filepath}")
+            
+            return JsonResponse({
+                'success': True,
+                'test_cases': test_cases,
+                'test_code': test_code,
+                'code_filename': code_filename
+            })
+            
+        else:
+            # 需求测试用例生成（原有逻辑）
+            requirements = data.get('requirements', '')
+            if not requirements:
+                return JsonResponse({
+                    'success': False,
+                    'message': '需求描述不能为空'
+                })
+            
+            case_design_methods = data.get('case_design_methods', [])
+            case_categories = data.get('case_categories', [])
+            case_count = int(data.get('case_count', 10))
+            
+            generator_agent = TestCaseGeneratorAgent(
+                llm_service=current_llm_service, 
+                knowledge_service=knowledge_service, 
+                case_design_methods=case_design_methods, 
+                case_categories=case_categories, 
+                case_count=case_count
+            )
+            
+            logger.info(f"开始生成测试用例 - 需求: {requirements}...")
+            logger.info(f"选择的测试用例设计方法: {case_design_methods}")
+            logger.info(f"选择的测试用例类型: {case_categories}")
+            logger.info(f"需要生成的用例条数: {case_count}")
+            
+            test_cases = generator_agent.generate(requirements, input_type="requirement")
+            logger.info(f"测试用例生成成功 - 生成数量: {len(test_cases)}")
+            
+            return JsonResponse({
+                'success': True,
+                'test_cases': test_cases
+            })
             
     except Exception as e:
         logger.error(f"生成测试用例时出错: {str(e)}", exc_info=True)

@@ -23,9 +23,46 @@
                 </select>
             </div>
             
-            <div class="form-group">
-                <label id="input-text-label" for="input-text">需求描述:</label>
-                <textarea id="input-text" name="requirements" class="form-control" rows="10" required>{{ requirements }}</textarea>
+            <div class="form-group mb-3">
+                <label for="test-type">测试类型:</label>
+                <select class="form-control" id="test-type" name="test_type">
+                    <option value="requirement">需求测试用例</option>
+                    <option value="grpc">gRPC接口测试用例</option>
+                </select>
+            </div>
+            
+            <div id="requirement-section">
+                <div class="form-group">
+                    <label id="input-text-label" for="input-text">需求描述:</label>
+                    <textarea id="input-text" name="requirements" class="form-control" rows="10">{{ requirements }}</textarea>
+                </div>
+            </div>
+            
+            <div id="grpc-section" style="display: none;">
+                <div class="form-group">
+                    <label for="grpc-method">选择gRPC方法:</label>
+                    <select class="form-control" id="grpc-method" name="grpc_method">
+                        <option value="">请选择...</option>
+                        {% if grpc_methods %}
+                            {% for method in grpc_methods %}
+                                <option value="{{ method.service }}.{{ method.method }}" 
+                                        data-service="{{ method.service }}"
+                                        data-method="{{ method.method }}"
+                                        data-file="{{ method.file }}">
+                                    {{ method.file }} - {{ method.service }}.{{ method.method }}
+                                </option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>方法详情:</label>
+                    <div id="method-details" class="alert alert-info" style="display: none;">
+                        <p><strong>服务:</strong> <span id="detail-service"></span></p>
+                        <p><strong>方法:</strong> <span id="detail-method"></span></p>
+                        <p><strong>文件:</strong> <span id="detail-file"></span></p>
+                    </div>
+                </div>
             </div>
             
             <div class="row mb-3">
@@ -131,7 +168,36 @@
 
 <div class="text-right mt-3" id="save-container">
     <button id="save-button" class="btn btn-success">保存测试用例</button>
+    {% if test_code %}
+    <button id="download-code-button" class="btn btn-primary ml-2">下载测试代码</button>
+    <button id="view-code-button" class="btn btn-info ml-2" data-toggle="modal" data-target="#codeModal">查看测试代码</button>
+    {% endif %}
 </div>
+{% endif %}
+
+{% if test_code %}
+<!-- 代码查看模态框 -->
+<div class="modal fade" id="codeModal" tabindex="-1" role="dialog" aria-labelledby="codeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="codeModalLabel">生成的测试代码</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <pre><code class="language-python">{{ test_code }}</code></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="copy-code-button">复制代码</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="test-code-data" type="application/json">{{ test_code|safe }}</script>
 {% endif %}
 
 <style>
@@ -266,4 +332,62 @@
 
 <!-- 在这里添加 generate.js 引用 -->
 <script src="{% static 'js/generate.js' %}"></script>
-{% endblock %} 
+
+<script>
+// gRPC相关的JavaScript代码
+$(document).ready(function() {
+    // 测试类型切换
+    $('#test-type').change(function() {
+        var testType = $(this).val();
+        if (testType === 'grpc') {
+            $('#requirement-section').hide();
+            $('#grpc-section').show();
+            $('#input-text').removeAttr('required');
+        } else {
+            $('#requirement-section').show();
+            $('#grpc-section').hide();
+            $('#input-text').attr('required', 'required');
+        }
+    });
+    
+    // gRPC方法选择
+    $('#grpc-method').change(function() {
+        var selectedOption = $(this).find('option:selected');
+        if (selectedOption.val()) {
+            $('#detail-service').text(selectedOption.data('service'));
+            $('#detail-method').text(selectedOption.data('method'));
+            $('#detail-file').text(selectedOption.data('file'));
+            $('#method-details').show();
+        } else {
+            $('#method-details').hide();
+        }
+    });
+    
+    // 下载代码按钮
+    $('#download-code-button').click(function() {
+        var testCode = $('#test-code-data').text();
+        var blob = new Blob([testCode], { type: 'text/plain;charset=utf-8' });
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'test_case_' + new Date().getTime() + '.py';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    });
+    
+    // 复制代码按钮
+    $('#copy-code-button').click(function() {
+        var testCode = $('#test-code-data').text();
+        navigator.clipboard.writeText(testCode).then(function() {
+            alert('代码已复制到剪贴板');
+        }).catch(function(err) {
+            console.error('复制失败:', err);
+            alert('复制失败，请手动复制');
+        });
+    });
+});
+</script>
+
+{% endblock %}
